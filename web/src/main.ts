@@ -275,9 +275,11 @@ async function execute() {
         title: `${err.code ?? "ERROR"}`,
         message:
           pgMessage(err) +
-          (item.kind === "analysed"
+          // Parse analysis raises the errors of class 42. The other errors come when the
+          // statement runs, and pgtk-analyze does not look for them.
+          (item.kind === "analysed" && err.code?.startsWith("42")
             ? " (PostgreSQL found an error that pgtk-analyze did not find)"
-            : " (from PostgreSQL)"),
+            : " (from PostgreSQL, when it ran the statement)"),
         from: item.start + (at ?? 0),
         to: item.start + (at ?? 0),
       });
@@ -348,7 +350,7 @@ function renderResult(item: Item, result: Results<unknown[]>) {
     div.textContent = `pgtk-analyze and PostgreSQL disagree on a type (${mismatches.join("; ")}). This is a pgtk bug. Please report it.`;
     children.push(div);
   }
-  children.push(muted(`${result.rows.length} rows.`), table);
+  children.push(muted(`${result.rows.length} ${result.rows.length === 1 ? "row" : "rows"}.`), table);
   resultsEl.replaceChildren(...children);
 }
 
