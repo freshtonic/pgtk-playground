@@ -51,7 +51,72 @@ impl Node {
     /// [`Primitive::Other`].
     pub fn from_debug(text: &str) -> Node {
         let mut parser = Parser { s: text, i: 0 };
-        parser.value()
+        parser.value().tidy()
+    }
+
+    /// Replaces recursa's storage types with what they mean:
+    ///
+    /// - a content token, `__RecursaContentTokenN { text: ContentText("d"), kind: ColIdText }`,
+    ///   becomes `Token { text: "d", kind: ColIdText }`;
+    /// - an arena list, `ArenaVec { values: [..] }` or `ArenaVec1 { .. }`, becomes the list.
+    fn tidy(self) -> Node {
+        match self {
+            Node::Struct { name, fields } if name.starts_with("__RecursaContentToken") => {
+                let fields = fields
+                    .into_iter()
+                    .map(|f| Field {
+                        _type: match f._type {
+                            Node::Enum { variant } if variant.name == "ContentText" => {
+                                variant._type.map_or(
+                                    Node::Primitive {
+                                        value: Primitive::Other(String::new()),
+                                    },
+                                    |t| *t,
+                                )
+                            }
+                            other => other.tidy(),
+                        },
+                        name: f.name,
+                    })
+                    .collect();
+                Node::Struct {
+                    name: "Token".to_owned(),
+                    fields,
+                }
+            }
+            Node::Struct { name, mut fields }
+                if name.starts_with("ArenaVec")
+                    && fields.len() == 1
+                    && fields[0].name == "values" =>
+            {
+                fields
+                    .pop()
+                    .map_or(Node::List { items: Vec::new() }, |f| f._type.tidy())
+            }
+            Node::Struct { name, fields } => Node::Struct {
+                name,
+                fields: fields
+                    .into_iter()
+                    .map(|f| Field {
+                        name: f.name,
+                        _type: f._type.tidy(),
+                    })
+                    .collect(),
+            },
+            Node::Enum { variant } => Node::Enum {
+                variant: Variant {
+                    name: variant.name,
+                    _type: variant._type.map(|t| Box::new(t.tidy())),
+                },
+            },
+            Node::Option { value } => Node::Option {
+                value: value.map(|v| Box::new(v.tidy())),
+            },
+            Node::List { items } => Node::List {
+                items: items.into_iter().map(Node::tidy).collect(),
+            },
+            primitive @ Node::Primitive { .. } => primitive,
+        }
     }
 }
 
@@ -305,7 +370,9 @@ mod real {
         .unwrap();
         let text = format!("{:#?}", document.statements()[0]);
         let tree = serde_json::to_string(&super::Node::from_debug(&text)).unwrap();
-        println!("{}", &text[..text.len().min(1500)]);
         assert!(!tree.contains("\"other\""), "{tree}");
+        assert!(!tree.contains("__Recursa"), "{tree}");
+        assert!(!tree.contains("ArenaVec"), "{tree}");
+        assert!(tree.contains(r#"{"kind":"struct","name":"Token","fields":[{"name":"text","type":{"kind":"primitive","value":{"kind":"string","value":"d"}}}"#), "{tree}");
     }
 }

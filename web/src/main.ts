@@ -378,8 +378,14 @@ function span(className: string, text: string): HTMLSpanElement {
 /** The label of a node, and its children. A variant that holds one value shows as `A › B`. */
 function describe(node: AstNode): { label: (Node | string)[]; children: [string, AstNode][] } {
   switch (node.kind) {
-    case "struct":
+    case "struct": {
+      // A token is one line: its text and its kind.
+      const [text, kind] = node.fields;
+      if (node.name === "Token" && text?.name === "text" && kind?.name === "kind") {
+        return { label: [...describe(text.type).label, " ", ...describe(kind.type).label], children: [] };
+      }
       return { label: [span("type", node.name)], children: node.fields.map((f) => [f.name, f.type]) };
+    }
     case "enum": {
       const inner = node.variant.type;
       if (inner === null) return { label: [span("type", node.variant.name)], children: [] };
