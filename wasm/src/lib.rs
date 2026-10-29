@@ -1,5 +1,5 @@
 //! The WebAssembly side of the playground: the catalog loader, the check that Execute runs
-//! before PostgreSQL, the AST, and Random.
+//! before PostgreSQL, the AST, Format and Random.
 //!
 //! Every offset that crosses to JavaScript is in UTF-16 code units, which is what the editor
 //! uses. pgtk gives byte offsets.
@@ -7,7 +7,7 @@
 use pgtk_analyze::{AnalyzeError, Analyzer, Session, Settings, TargetVersion};
 use pgtk_catalog::{Catalog, Loader, QueryId, Rows};
 use pgtk_sql::document::{RecoveredItem, parse_sql_recovering};
-use recursa::PrettyConfig;
+use recursa::{Pretty, PrettyConfig};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -234,10 +234,86 @@ pub fn ast(sql: &str) -> Result<String, JsError> {
     serde_json::to_string(&trees).map_err(|e| JsError::new(&e.to_string()))
 }
 
-/// One random statement from pgtk-sql's sampler, made from `bytes` of entropy.
+/// The line width that the page formats SQL to.
+const FORMAT_WIDTH: usize = 80;
+
+/// The indentation of one level of formatted SQL.
+const FORMAT_INDENT: usize = 2;
+
+/// Formats `sql` with pgtk-sql's pretty printer: each statement that pgtk-sql accepts, with one
+/// blank line between two statements.
+///
+/// The text that pgtk-sql rejects stays as it is. So does a statement that holds a comment,
+/// because the syntax tree has no comments. A comment between two statements stays, on its own
+/// lines.
+#[wasm_bindgen]
+pub fn format(sql: &str) -> Result<String, JsError> {
+    let document = parse_sql_recovering(sql).map_err(|e| JsError::new(&e.to_string()))?;
+    let config = PrettyConfig::new(FORMAT_WIDTH, FORMAT_INDENT);
+    let mut parts = Vec::new();
+    let mut end = 0;
+    for item in document.items() {
+        let span = item.span().range();
+        let gap = sql[end..span.start].trim();
+        if !gap.is_empty() {
+            parts.push(gap.to_owned());
+        }
+        let text = &sql[span.clone()];
+        let formatted = match item {
+            RecoveredItem::Statement { parsed, .. } if !has_comment(text) => parsed
+                .ast()
+                .statement
+                .as_ref()
+                .map(|statement| statement.render_with(config)),
+            RecoveredItem::Statement { .. } | RecoveredItem::Rejected(_) => None,
+        };
+        parts.push(match formatted {
+            Some(statement) if text.trim_end().ends_with(';') => statement + ";",
+            Some(statement) => statement,
+            None => text.trim().to_owned(),
+        });
+        end = span.end;
+    }
+    let tail = sql[end..].trim();
+    if !tail.is_empty() {
+        parts.push(tail.to_owned());
+    }
+    let mut formatted = String::new();
+    for part in parts.iter().filter(|part| !part.is_empty()) {
+        if !formatted.is_empty() {
+            // A comment stays just above the statement after it.
+            formatted.push_str(if formatted.ends_with(';') {
+                "\n\n"
+            } else {
+                "\n"
+            });
+        }
+        formatted.push_str(part);
+    }
+    formatted.push('\n');
+    Ok(formatted)
+}
+
+/// Whether `text` holds a comment: text between two tokens that is not whitespace.
+fn has_comment(text: &str) -> bool {
+    let lexed = pgtk_sql::lex(text);
+    let mut end = 0;
+    for token in lexed.tokens() {
+        let span = token.span().range();
+        if !text[end..span.start].trim().is_empty() {
+            return true;
+        }
+        end = span.end;
+    }
+    !text[end..].trim().is_empty()
+}
+
+/// One random statement from pgtk-sql's sampler, made from `bytes` of entropy, formatted as
+/// [`format`] formats a statement.
 pub fn random_statement(bytes: &[u8]) -> Option<String> {
     let document = pgtk_sql::ast::Statement::explorer().sample(bytes)?.ok()?;
-    Some(document.pretty(&PrettyConfig::default())?.rendered)
+    let config = PrettyConfig::new(FORMAT_WIDTH, FORMAT_INDENT);
+    Some(document.pretty(&config)?.rendered)
 }
 
 /// One random statement: tries up to `attempts` times with new bytes from `entropy`.
@@ -259,5 +335,35 @@ impl<'a> Utf16<'a> {
 
     fn at(&self, byte: usize) -> usize {
         self.0[..byte.min(self.0.len())].encode_utf16().count()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format;
+
+    #[test]
+    fn format_pretty_prints_each_statement_and_keeps_the_comments_between_them() {
+        let sql = "-- The departments.\nselect d.name, count(e.id) as headcount, sum(e.salary) as salary_bill, max(e.salary) as top from departments d left join employees e on e.department_id = d.id group by d.name;select 1; /* last */";
+        assert_eq!(
+            format(sql).unwrap(),
+            "-- The departments.\n\
+             SELECT\n  d.name,\n  count(e.id) AS headcount,\n  sum(e.salary) AS salary_bill,\n  max(e.salary) AS top\n\
+             FROM departments d LEFT JOIN employees e ON e.department_id = d.id\n\
+             GROUP BY d.name;\n\
+             \n\
+             SELECT 1;\n\
+             \n\
+             /* last */\n"
+        );
+    }
+
+    #[test]
+    fn format_keeps_a_statement_with_a_comment_and_text_that_pgtk_sql_rejects() {
+        let sql = "select a, -- the key\n b from t;\nselect from where;";
+        assert_eq!(
+            format(sql).unwrap(),
+            "select a, -- the key\n b from t;\n\nselect from where;\n"
+        );
     }
 }

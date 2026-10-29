@@ -269,8 +269,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 [[package]]
 name = "pgtk-analyze"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbadbba3bf09a4a41df8914106732913e42cc7bb4af7a8c0b6696f1607228e4c"
+source = "git+https://github.com/freshtonic/pgtk?rev=b063917c750c0307ae2e8d5b839f37037cfd9752#b063917c750c0307ae2e8d5b839f37037cfd9752"
 dependencies = [
  "pgtk-catalog",
  "pgtk-sql",
@@ -281,7 +280,7 @@ dependencies = [
 [[package]]
 name = "pgtk-catalog"
 version = "0.1.0"
-source = "git+https://github.com/freshtonic/pgtk?rev=25b4e53c80467aac3aeb9454bd02a5fec7d3404c#25b4e53c80467aac3aeb9454bd02a5fec7d3404c"
+source = "git+https://github.com/freshtonic/pgtk?rev=b063917c750c0307ae2e8d5b839f37037cfd9752#b063917c750c0307ae2e8d5b839f37037cfd9752"
 dependencies = [
  "thiserror",
 ]
@@ -303,8 +302,7 @@ dependencies = [
 [[package]]
 name = "pgtk-sql"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c24caf441a280081122835b824295b01d65ab0cd30fe930b4903f39d85b90ee"
+source = "git+https://github.com/freshtonic/pgtk?rev=b063917c750c0307ae2e8d5b839f37037cfd9752#b063917c750c0307ae2e8d5b839f37037cfd9752"
 dependencies = [
  "arbitrary",
  "clap",
@@ -417,8 +415,7 @@ checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 [[package]]
 name = "recursa"
 version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9b1f9d7c2cc10d757804aca95758da27c2fe6237fb4041880509b66d9f96c85"
+source = "git+https://github.com/freshtonic/recursa?rev=42a1152704d1a031d98011d201d4a2cbe5e6980a#42a1152704d1a031d98011d201d4a2cbe5e6980a"
 dependencies = [
  "recursa-core",
  "recursa-macros",
@@ -427,8 +424,7 @@ dependencies = [
 [[package]]
 name = "recursa-codegen"
 version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3897fc3e79c45d7eba437ae5a70801fd89c079d4295ac80a9e413d7d3a9a8782"
+source = "git+https://github.com/freshtonic/recursa?rev=42a1152704d1a031d98011d201d4a2cbe5e6980a#42a1152704d1a031d98011d201d4a2cbe5e6980a"
 dependencies = [
  "phf_codegen",
  "prettyplease",
@@ -444,8 +440,7 @@ dependencies = [
 [[package]]
 name = "recursa-core"
 version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43eb2465ed9d59e667688ac01510978bc551255ec83780936caf633b439cda01"
+source = "git+https://github.com/freshtonic/recursa?rev=42a1152704d1a031d98011d201d4a2cbe5e6980a#42a1152704d1a031d98011d201d4a2cbe5e6980a"
 dependencies = [
  "arbitrary",
  "bumpalo",
@@ -458,8 +453,7 @@ dependencies = [
 [[package]]
 name = "recursa-diagrams"
 version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfa1aff450a59b35a21c22f7491b0dd07e1c48c09cc80047ef073d94e9506986"
+source = "git+https://github.com/freshtonic/recursa?rev=42a1152704d1a031d98011d201d4a2cbe5e6980a#42a1152704d1a031d98011d201d4a2cbe5e6980a"
 dependencies = [
  "railroad",
 ]
@@ -467,8 +461,7 @@ dependencies = [
 [[package]]
 name = "recursa-macros"
 version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b6db2d3690aa8f8a88d8f99b83c3dce88d9c20cb87022ca24b99b7e7940338d"
+source = "git+https://github.com/freshtonic/recursa?rev=42a1152704d1a031d98011d201d4a2cbe5e6980a#42a1152704d1a031d98011d201d4a2cbe5e6980a"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
