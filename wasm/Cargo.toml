@@ -30,6 +30,6 @@ strip = true
 wasm-opt = false
 
 # Until pgtk-catalog 0.1.1 is released: the Loader from pgtk main reads no clock, so it runs in
-# the browser (freshtonic/pgtk#115).
+# the browser (freshtonic/pgtk#115, merged).
 [patch.crates-io]
-pgtk-catalog = { git = "https://github.com/freshtonic/pgtk", rev = "98f98ff1" }
+pgtk-catalog = { git = "https://github.com/freshtonic/pgtk", rev = "25b4e53c80467aac3aeb9454bd02a5fec7d3404c" }

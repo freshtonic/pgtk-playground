@@ -8,6 +8,18 @@
   --error: #c62828;
   --warning: #b26a00;
   --info: #2f6db3;
+  --code-bg: #ffffff;
+  --gutter: #f3f3f4;
+  --active-line: #f2f6fb;
+  --selection: #cfe0f5;
+  --squiggle-bg: rgba(198, 40, 40, 0.1);
+  --tok-keyword: #7a1fa2;
+  --tok-string: #1f6f2b;
+  --tok-number: #0b5cad;
+  --tok-comment: #6b6b70;
+  --tok-type: #0b5cad;
+  --tok-operator: #3b3b40;
+  --tok-function: #8a4b00;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light dark;
 }
@@ -22,6 +34,18 @@
     --error: #ef6b6b;
     --warning: #e0a040;
     --info: #79a8e6;
+    --code-bg: #1e1e21;
+    --gutter: #232327;
+    --active-line: #26262b;
+    --selection: #2f4a6b;
+    --squiggle-bg: rgba(239, 107, 107, 0.15);
+    --tok-keyword: #d7a1ff;
+    --tok-string: #9fdc8f;
+    --tok-number: #8cc4ff;
+    --tok-comment: #9a9aa0;
+    --tok-type: #8cc4ff;
+    --tok-operator: #d0d0d5;
+    --tok-function: #f0b46b;
   }
 }
 * { box-sizing: border-box; }
@@ -72,3 +96,93 @@ button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent);
 #ast .field { color: var(--muted); }
 #ast .type { color: var(--accent); }
 #ast .value { color: var(--warning); }
+
+/* ----- the editor, from the theme tokens ----- */
+#editor .cm-editor { background: var(--code-bg); color: var(--fg); }
+#editor .cm-gutters { background: var(--gutter); color: var(--muted); border-right: 1px solid var(--line); }
+#editor .cm-activeLine { background: var(--active-line); }
+#editor .cm-activeLineGutter { background: var(--active-line); }
+#editor .cm-content { caret-color: var(--fg); }
+#editor .cm-cursor { border-left-color: var(--fg); }
+#editor .cm-selectionBackground, #editor .cm-focused .cm-selectionBackground { background: var(--selection) !important; }
+.tok-keyword { color: var(--tok-keyword); font-weight: 600; }
+.tok-string, .tok-string2 { color: var(--tok-string); }
+.tok-number, .tok-bool, .tok-atom { color: var(--tok-number); }
+.tok-comment { color: var(--tok-comment); font-style: italic; }
+.tok-typeName { color: var(--tok-type); }
+.tok-operator, .tok-punctuation { color: var(--tok-operator); }
+.tok-variableName.tok-definition, .tok-function { color: var(--tok-function); }
+
+/* The squiggle: a thick wavy line and a tint, so that a projector shows it. */
+#editor .cm-lintRange-error {
+  background-image: none;
+  background-color: var(--squiggle-bg);
+  text-decoration: underline wavy var(--error);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  text-decoration-skip-ink: none;
+}
+#editor .cm-lintRange-warning { background-image: none; text-decoration: underline wavy var(--warning); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+#editor .cm-lintRange-info { background-image: none; text-decoration: underline dotted var(--info); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+
+/* Tooltips and the completion box: always dark text on a light background. */
+.cm-tooltip-lint { max-width: min(36rem, 90vw); }
+.cm-tooltip { background: #ffffff !important; color: #111111 !important; border: 1px solid #b8b8bd !important; border-radius: 6px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); }
+.cm-tooltip-lint { padding: 0; }
+.cm-diagnostic { padding: 6px 10px 6px 12px; font-size: 0.95rem; line-height: 1.4; color: #111111; }
+.cm-tooltip-autocomplete ul li { color: #111111; }
+.cm-tooltip-autocomplete ul li[aria-selected] { background: #1f5f99 !important; color: #ffffff !important; }
+
+/* ----- Present mode: large text and strong contrast for a projector ----- */
+html.present {
+  /* About 22px at 1920 pixels wide, and not less than 18px at 1280. */
+  font-size: clamp(18px, 1.15vw, 24px);
+  --bg: #ffffff;
+  --fg: #000000;
+  --muted: #3d3d42;
+  --line: #9a9aa0;
+  --panel: #ffffff;
+  --accent: #1f5f99;
+  --error: #b00020;
+  --warning: #8a5300;
+  --info: #1f5f99;
+  --code-bg: #ffffff;
+  --gutter: #f0f0f2;
+  --active-line: #eef4fb;
+  --selection: #c4dbf5;
+  --squiggle-bg: rgba(176, 0, 32, 0.12);
+  --tok-keyword: #6a1495;
+  --tok-string: #145a20;
+  --tok-number: #0a4f96;
+  --tok-comment: #55555a;
+  --tok-type: #0a4f96;
+  --tok-operator: #000000;
+  --tok-function: #7a3f00;
+  color-scheme: light;
+}
+html.present body { min-height: 100vh; }
+html.present header { padding: 10px 20px 0; }
+html.present h1 { font-size: 1.3rem; }
+html.present .tagline, html.present footer { display: none; }
+html.present main { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 20px; padding: 10px 20px 20px; }
+/* Two columns only: with the AST open, the notes stay at the top of the right column, and the
+   AST takes the place of the results table under them. */
+html.present main.with-ast { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); grid-template-rows: auto 1fr; }
+html.present main.with-ast .editor-pane { grid-row: 1 / span 2; }
+html.present main.with-ast .results-pane { grid-column: 2; grid-row: 1; }
+html.present main.with-ast #results { display: none; }
+html.present main.with-ast .ast-pane { grid-column: 2; grid-row: 2; }
+html.present button { padding: 8px 18px; border-width: 2px; }
+html.present #editor { border-width: 2px; }
+html.present #editor .cm-editor { min-height: calc(100vh - 220px); max-height: calc(100vh - 160px); }
+html.present #editor .cm-scroller { font-size: clamp(20px, 1.4vw, 28px); line-height: 1.45; }
+html.present #editor .cm-lintRange-error { text-decoration-thickness: 3px; text-underline-offset: 6px; }
+html.present .note { font-size: 1rem; border-left-width: 6px; padding: 10px 14px; }
+html.present .muted { font-size: 0.9rem; }
+html.present #results { max-height: calc(100vh - 220px); }
+html.present table { font-size: 0.95rem; }
+html.present th, html.present td { padding: 6px 12px; border-color: #b8b8bd; }
+html.present th .types { font-size: 0.95rem; color: #1a1a1d; }
+html.present #ast { font-size: 0.8rem; max-height: calc(100vh - 260px); }
+html.present .cm-diagnostic { font-size: 1rem; }
+html.present .cm-tooltip-autocomplete ul { font-size: 1rem; }

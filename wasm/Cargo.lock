@@ -281,7 +281,7 @@ dependencies = [
 [[package]]
 name = "pgtk-catalog"
 version = "0.1.0"
-source = "git+https://github.com/freshtonic/pgtk?rev=98f98ff1#98f98ff1c59c3b79d3e5ecf1068739f7e40326a4"
+source = "git+https://github.com/freshtonic/pgtk?rev=25b4e53c80467aac3aeb9454bd02a5fec7d3404c#25b4e53c80467aac3aeb9454bd02a5fec7d3404c"
 dependencies = [
  "thiserror",
 ]

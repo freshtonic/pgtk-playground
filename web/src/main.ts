@@ -3,6 +3,9 @@ import { EditorView, basicSetup } from "codemirror";
 import { keymap } from "@codemirror/view";
 import { sql, PostgreSQL } from "@codemirror/lang-sql";
 import { linter, setDiagnostics, type Diagnostic } from "@codemirror/lint";
+import { autocompletion } from "@codemirror/autocomplete";
+import { syntaxHighlighting } from "@codemirror/language";
+import { classHighlighter } from "@lezer/highlight";
 import init, { CatalogLoader, type Playground, ast as astJson } from "./pkg/pgtk_playground_wasm.js";
 import schemaSql from "./schema.sql?raw";
 import dataSql from "./data.sql?raw";
@@ -62,6 +65,7 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const executeButton = $<HTMLButtonElement>("execute");
 const randomButton = $<HTMLButtonElement>("random");
 const resetButton = $<HTMLButtonElement>("reset");
+const presentButton = $<HTMLButtonElement>("present");
 const status = $<HTMLSpanElement>("status");
 const notesEl = $<HTMLDivElement>("notes");
 const resultsEl = $<HTMLDivElement>("results");
@@ -75,6 +79,11 @@ const editor = new EditorView({
   extensions: [
     basicSetup,
     sql({ dialect: PostgreSQL }),
+    EditorView.lineWrapping,
+    // The colours of the tokens come from style.css (`.tok-*`), so that they follow the theme.
+    syntaxHighlighting(classHighlighter),
+    // A completion box that opens on each key covers the code. Ctrl+Space still opens it.
+    autocompletion({ activateOnTyping: false }),
     // The diagnostics come from Execute, not from a lint source.
     linter(null),
     keymap.of([{ key: "Mod-Enter", run: () => (void busy("Running…", execute), true) }]),
@@ -531,6 +540,21 @@ function randomStatement(): Promise<string | null> {
     w.postMessage(null);
   });
 }
+
+// ----- Present mode: large text and strong contrast for a projector -----
+
+function setPresent(on: boolean) {
+  document.documentElement.classList.toggle("present", on);
+  presentButton.setAttribute("aria-pressed", String(on));
+  const url = new URL(location.href);
+  if (on) url.searchParams.set("present", "");
+  else url.searchParams.delete("present");
+  history.replaceState(null, "", url.toString().replace("present=", "present"));
+  editor.requestMeasure();
+}
+
+presentButton.onclick = () => setPresent(!document.documentElement.classList.contains("present"));
+setPresent(new URL(location.href).searchParams.has("present"));
 
 // ----- start -----
 
