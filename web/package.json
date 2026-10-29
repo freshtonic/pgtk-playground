@@ -6,7 +6,8 @@
     "wasm": "cd ../wasm && wasm-pack build --release --target web --out-dir ../web/src/pkg --no-pack",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "docs-index": "node scripts/docs-index.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.4",

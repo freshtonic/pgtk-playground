@@ -493,6 +493,40 @@ function span(className: string, text: string): HTMLSpanElement {
   return s;
 }
 
+/** A type name in the AST panel. ⌘-click (Ctrl-click) opens its rustdoc page. */
+function typeSpan(name: string): HTMLSpanElement {
+  const s = span("type", name);
+  s.dataset.docType = name;
+  return s;
+}
+
+/** A variant name. Debug output does not name the enum, so ⌘-click searches for the variant. */
+function variantSpan(name: string): HTMLSpanElement {
+  const s = span("type", name);
+  s.dataset.docVariant = name;
+  return s;
+}
+
+type DocsIndex = { bases: string[]; search: string; types: Record<string, string[]> };
+let docsIndex: Promise<DocsIndex> | undefined;
+
+/** The rustdoc page of a type, or a rustdoc search when the name is not one type. */
+async function docsUrl(el: HTMLElement): Promise<string | undefined> {
+  docsIndex ??= import("./docs-index.json").then((m) => m.default as DocsIndex);
+  const index = await docsIndex;
+  const type = el.dataset.docType;
+  if (type !== undefined) {
+    const pages = index.types[type];
+    if (pages?.length === 1) {
+      const [crate, path] = pages[0].split(/:(.*)/);
+      return index.bases[Number(crate)] + path;
+    }
+    return pages ? index.search + encodeURIComponent(type) : undefined;
+  }
+  const variant = el.dataset.docVariant;
+  return variant === undefined ? undefined : index.search + encodeURIComponent(`variant:${variant}`);
+}
+
 /** The label of a node, and its children. A variant that holds one value shows as `A › B`. */
 function describe(node: AstNode): { label: (Node | string)[]; children: [string, AstNode][] } {
   switch (node.kind) {
@@ -502,13 +536,13 @@ function describe(node: AstNode): { label: (Node | string)[]; children: [string,
       if (node.name === "Token" && text?.name === "text" && kind?.name === "kind") {
         return { label: [...describe(text.type).label, " ", ...describe(kind.type).label], children: [] };
       }
-      return { label: [span("type", node.name)], children: node.fields.map((f) => [f.name, f.type]) };
+      return { label: [typeSpan(node.name)], children: node.fields.map((f) => [f.name, f.type]) };
     }
     case "enum": {
       const inner = node.variant.type;
-      if (inner === null) return { label: [span("type", node.variant.name)], children: [] };
+      if (inner === null) return { label: [variantSpan(node.variant.name)], children: [] };
       const d = describe(inner);
-      return { label: [span("type", node.variant.name), " › ", ...d.label], children: d.children };
+      return { label: [variantSpan(node.variant.name), " › ", ...d.label], children: d.children };
     }
     case "option":
       return node.value === null
@@ -549,6 +583,30 @@ function updateAst() {
       : trees.map((t, i) => renderAst(trees.length > 1 ? `statement ${i + 1}` : undefined, t, 0))),
   );
 }
+
+// ⌘-click (Ctrl-click) on a type name opens its rustdoc page in a new tab.
+astEl.addEventListener("click", (e) => {
+  if (!(e.metaKey || e.ctrlKey)) return;
+  const el = (e.target as HTMLElement).closest<HTMLElement>("[data-doc-type], [data-doc-variant]");
+  if (!el) return;
+  // Do not open or close the <details>.
+  e.preventDefault();
+  // Open the tab now, in the click, so that the browser permits it; set its address when the
+  // index has loaded.
+  const tab = window.open("about:blank", "_blank");
+  void docsUrl(el).then((url) => {
+    if (tab && url) tab.location.href = url;
+    else tab?.close();
+  });
+});
+
+// While ⌘ (Ctrl) is held, the type names look like links.
+const showLinks = (e: KeyboardEvent | MouseEvent) =>
+  astEl.classList.toggle("doc-links", e.metaKey || e.ctrlKey);
+window.addEventListener("keydown", showLinks);
+window.addEventListener("keyup", showLinks);
+astEl.addEventListener("mousemove", showLinks);
+window.addEventListener("blur", () => astEl.classList.remove("doc-links"));
 
 astButton.onclick = () => {
   astPane.hidden = !astPane.hidden;

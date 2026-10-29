@@ -96,6 +96,7 @@ button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent);
 #ast .field { color: var(--muted); }
 #ast .type { color: var(--accent); }
 #ast .value { color: var(--warning); }
+#ast.doc-links [data-doc-type], #ast.doc-links [data-doc-variant] { cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 
 /* ----- the editor, from the theme tokens ----- */
 #editor .cm-editor { background: var(--code-bg); color: var(--fg); }

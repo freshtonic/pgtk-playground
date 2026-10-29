@@ -11,7 +11,10 @@ runs it. The page is at <https://freshtonic.github.io/pgtk-playground/>.
   that PostgreSQL gave.
 - **Random** gives a random statement from pgtk-sql's sampler. It does not know the schema.
 - **Reset database** puts back the starting schema and data.
-- **AST** shows the syntax tree of each statement.
+- **AST** shows the syntax tree of each statement. ⌘-click (Ctrl-click) a type name to open its
+  rustdoc page on docs.rs. A variant name opens a rustdoc search, because the tree does not know
+  the name of its enum. `web/src/docs-index.json` holds the pages; after a pgtk-sql or recursa
+  version changes, run `npm run docs-index` again.
 
 The database starts with a small employee schema (`web/src/schema.sql` and `web/src/data.sql`).
 DDL is permitted: after a statement that can change the catalog, the page loads the catalog again,
