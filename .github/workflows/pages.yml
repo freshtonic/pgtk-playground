@@ -29,7 +29,6 @@ jobs:
       - name: Check the Rust code
         run: |
           cargo fmt --check --manifest-path wasm/Cargo.toml
-          cargo fmt --check --manifest-path catalog/Cargo.toml
           (cd wasm && cargo clippy --target wasm32-unknown-unknown -- -D warnings)
       - uses: actions/setup-node@v4
         with:

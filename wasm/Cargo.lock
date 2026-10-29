@@ -281,10 +281,8 @@ dependencies = [
 [[package]]
 name = "pgtk-catalog"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b083a39a71d9970fcb897781d2829e886148bf093ad7dcbbd7f546b33214e5ba"
+source = "git+https://github.com/freshtonic/pgtk?rev=98f98ff1#98f98ff1c59c3b79d3e5ecf1068739f7e40326a4"
 dependencies = [
- "serde",
  "thiserror",
 ]
 

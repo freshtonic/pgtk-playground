@@ -3,9 +3,7 @@ import { EditorView, basicSetup } from "codemirror";
 import { keymap } from "@codemirror/view";
 import { sql, PostgreSQL } from "@codemirror/lang-sql";
 import { linter, setDiagnostics, type Diagnostic } from "@codemirror/lint";
-import init, { Playground, ast as astJson } from "./pkg/pgtk_playground_wasm.js";
-// The Catalog of this database, from `npm run catalog` (see catalog/ in the repository root).
-import catalogJson from "./catalog.json?raw";
+import init, { CatalogLoader, type Playground, ast as astJson } from "./pkg/pgtk_playground_wasm.js";
 import schemaSql from "./schema.sql?raw";
 import dataSql from "./data.sql?raw";
 
@@ -136,29 +134,46 @@ async function rowsOf(sqlText: string): Promise<(string | null)[][]> {
   return result.rows.map((row) => row.map((v) => (v === null ? null : String(v))));
 }
 
-/** Puts back the sample data. The tables stay, so that the Catalog stays correct. */
-async function resetData() {
-  await db.exec("TRUNCATE projects, employees, departments RESTART IDENTITY CASCADE;");
+/** Loads pgtk's Catalog from the PGlite database with pgtk-catalog's Loader. Gives the time. */
+async function reloadCatalog(): Promise<number> {
+  const started = performance.now();
+  const loader = new CatalogLoader(JSON.stringify(await rowsOf(CatalogLoader.bootstrapQuery())));
+  const queries = loader.queries();
+  for (let i = 0; i < queries.length; i++) {
+    loader.feed(i, JSON.stringify(await rowsOf(queries[i])));
+  }
+  playground?.free();
+  playground = loader.finish();
+  typeNames.clear();
+  for (const [oid, name] of await rowsOf("SELECT oid::text, typname::text FROM pg_type")) {
+    typeNames.set(Number(oid), name!);
+  }
+  return Math.round(performance.now() - started);
+}
+
+/** Puts back the starting schema and data. */
+async function resetDatabase() {
+  await db.exec("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
+  await db.exec(schemaSql);
   await db.exec(dataSql);
+  await reloadCatalog();
 }
 
 async function start() {
   await init();
-  playground = new Playground(catalogJson);
   db = await PGlite.create();
   await db.exec(schemaSql);
   await db.exec(dataSql);
-  for (const [oid, name] of await rowsOf("SELECT oid::text, typname::text FROM pg_type")) {
-    typeNames.set(Number(oid), name!);
-  }
+  status.textContent = "Loading the catalog…";
+  await reloadCatalog();
 }
 
 // ----- Execute -----
 
-/** True for a statement that changes the schema. The schema is fixed, so the page refuses it. */
-function isDdl(text: string): boolean {
+/** True for a statement that can change the catalog. After it runs, the Catalog is loaded again. */
+function changesCatalog(text: string): boolean {
   const body = text.replace(/^(\s+|--[^\n]*\n?|\/\*[\s\S]*?\*\/)*/, "");
-  return /^(create|alter|drop|truncate|grant|revoke|comment|reindex|cluster|security|import|refresh)\b/i.test(
+  return /^(create|alter|drop|comment|grant|revoke|security|import|refresh|rollback|abort|reset|set)\b/i.test(
     body,
   );
 }
@@ -182,89 +197,136 @@ function pgMessage(e: PgError): string {
     .join(" ");
 }
 
+/** The notes for one checked statement, and whether they stop it from running. */
+async function notesFor(item: Item): Promise<{ notes: Note[]; blocks: boolean }> {
+  if (item.kind === "rejected") {
+    // The PostgreSQL part of a Rejection comes from PostgreSQL. describeQuery parses and
+    // analyses the statement but never runs it.
+    try {
+      await db.describeQuery(item.text);
+      return {
+        blocks: true,
+        notes: [
+          {
+            severity: "warning",
+            title: "pgtk-sql rejects this statement, but PostgreSQL accepts it.",
+            message: "This is a pgtk bug. Please report it.",
+            from: item.atStart,
+            to: item.atEnd,
+          },
+        ],
+      };
+    } catch (e) {
+      const err = e as PgError;
+      return {
+        blocks: true,
+        notes: [
+          {
+            severity: "error",
+            title: `${err.code ?? "ERROR"}`,
+            message: `${pgMessage(err)} (found by pgtk-sql; message from PostgreSQL)`,
+            from: item.atStart,
+            to: item.atEnd,
+          },
+        ],
+      };
+    }
+  }
+  if (item.kind === "diagnostic") {
+    return {
+      blocks: true,
+      notes: [
+        {
+          severity: "error",
+          title: item.sqlstate,
+          message:
+            [item.message, item.detail && `Detail: ${item.detail}`, item.hint && `Hint: ${item.hint}`]
+              .filter(Boolean)
+              .join(" ") + " (found by pgtk-analyze)",
+          from: item.atStart ?? item.start,
+          to: item.atEnd ?? item.atStart ?? item.start,
+        },
+      ],
+    };
+  }
+  if (item.kind === "unsupported") {
+    return {
+      blocks: false,
+      notes: [
+        {
+          severity: "info",
+          title: "pgtk-analyze cannot analyse this statement yet",
+          message: `(${item.what}). PostgreSQL runs it with no check.`,
+          from: item.start,
+          to: item.start,
+        },
+      ],
+    };
+  }
+  if (item.params.length > 0) {
+    return {
+      blocks: true,
+      notes: [
+        {
+          severity: "info",
+          title: "Not run: the statement has parameters.",
+          message:
+            item.params.map((p, i) => `$${i + 1} ${p.type}`).join(", ") + " (types from pgtk-analyze)",
+          from: item.start,
+          to: item.start,
+        },
+      ],
+    };
+  }
+  return { blocks: false, notes: [] };
+}
+
 async function execute() {
   updateAst();
   const text = editor.state.doc.toString();
-  const items: Item[] = JSON.parse(playground.check(text));
+  let items: Item[] = JSON.parse(playground.check(text));
   const notes: Note[] = [];
-  let blocked = false;
-
-  for (const item of items) {
-    if (item.kind === "rejected") {
-      blocked = true;
-      // The PostgreSQL part of a Rejection comes from PostgreSQL. describeQuery parses and
-      // analyses the statement but never runs it.
-      try {
-        await db.describeQuery(item.text);
-        notes.push({
-          severity: "warning",
-          title: "pgtk-sql rejects this statement, but PostgreSQL accepts it.",
-          message: "This is a pgtk bug. Please report it.",
-          from: item.atStart,
-          to: item.atEnd,
-        });
-      } catch (e) {
-        const err = e as PgError;
-        notes.push({
-          severity: "error",
-          title: `${err.code ?? "ERROR"}`,
-          message: `${pgMessage(err)} (found by pgtk-sql; message from PostgreSQL)`,
-          from: item.atStart,
-          to: item.atEnd,
-        });
-      }
-    } else if (item.kind === "diagnostic") {
-      blocked = true;
-      notes.push({
-        severity: "error",
-        title: item.sqlstate,
-        message:
-          [item.message, item.detail && `Detail: ${item.detail}`, item.hint && `Hint: ${item.hint}`]
-            .filter(Boolean)
-            .join(" ") + " (found by pgtk-analyze)",
-        from: item.atStart ?? item.start,
-        to: item.atEnd ?? item.atStart ?? item.start,
-      });
-    } else if (item.kind === "unsupported") {
-      notes.push({
-        severity: "info",
-        title: "pgtk-analyze cannot analyse this statement yet",
-        message: `(${item.what}). PostgreSQL runs it with no check.`,
-        from: item.start,
-        to: item.start,
-      });
-    }
-    if (isDdl(item.text)) {
-      blocked = true;
-      notes.push({
-        severity: "error",
-        title: "The schema is fixed.",
-        message: "The playground does not run DDL. INSERT, UPDATE and DELETE are permitted.",
-        from: item.start,
-        to: item.start,
-      });
-    } else if (item.kind === "analysed" && item.params.length > 0) {
-      blocked = true;
-      notes.push({
-        severity: "info",
-        title: "Not run: the statement has parameters.",
-        message: item.params.map((p, i) => `$${i + 1} ${p.type}`).join(", ") + " (types from pgtk-analyze)",
-        from: item.start,
-        to: item.start,
-      });
-    }
+  if (items.length === 0) {
+    showNotes(notes);
+    resultsEl.replaceChildren(muted("There is no statement to run."));
+    return;
   }
 
-  if (blocked || items.length === 0) {
+  // The statements up to the first one that changes the catalog are checked before anything
+  // runs. A statement after it is checked again when its turn comes, against the new Catalog.
+  const first = items.findIndex((item) => changesCatalog(item.text));
+  const upFront = first < 0 ? items : items.slice(0, first + 1);
+  let blocked = false;
+  for (const item of upFront) {
+    const result = await notesFor(item);
+    notes.push(...result.notes);
+    blocked ||= result.blocks;
+  }
+  if (blocked) {
     showNotes(notes);
-    resultsEl.replaceChildren(
-      muted(items.length === 0 ? "There is no statement to run." : "Not run. See the notes above."),
-    );
+    resultsEl.replaceChildren(muted("Not run. See the notes above."));
     return;
   }
 
   let last: { item: Item; result: Results<unknown[]> } | undefined;
-  for (const item of items) {
+  let stale = false;
+  for (let i = 0; i < items.length; i++) {
+    if (stale) {
+      items = JSON.parse(playground.check(text));
+      stale = false;
+    }
+    const item = items[i];
+    if (first >= 0 && i > first) {
+      const result = await notesFor(item);
+      notes.push(...result.notes);
+      if (result.blocks) {
+        showNotes(notes);
+        resultsEl.replaceChildren(
+          muted(`Statement ${i + 1} was not run. The statements before it ran. See the notes above.`),
+        );
+        return;
+      }
+    }
     try {
       last = { item, result: await db.query<unknown[]>(item.text, [], { rowMode: "array" }) };
     } catch (e) {
@@ -276,16 +338,27 @@ async function execute() {
         message:
           pgMessage(err) +
           // Parse analysis raises the errors of class 42. The other errors come when the
-          // statement runs, and pgtk-analyze does not look for them.
-          (item.kind === "analysed" && err.code?.startsWith("42")
+          // statement runs, and pgtk-analyze does not look for them. pgtk-analyze does not
+          // analyse DDL.
+          (item.kind === "analysed" && !item.utility && err.code?.startsWith("42")
             ? " (PostgreSQL found an error that pgtk-analyze did not find)"
             : " (from PostgreSQL, when it ran the statement)"),
         from: item.start + (at ?? 0),
         to: item.start + (at ?? 0),
       });
+      if (changesCatalog(item.text) || i > first) await reloadCatalog();
       showNotes(notes);
       resultsEl.replaceChildren(muted("PostgreSQL stopped at the error above."));
       return;
+    }
+    if (changesCatalog(item.text)) {
+      const ms = await reloadCatalog();
+      notes.push({
+        severity: "info",
+        title: "The catalog changed.",
+        message: `pgtk-catalog loaded it again from PostgreSQL in ${ms} ms.`,
+      });
+      stale = true;
     }
   }
   showNotes(notes);
@@ -478,9 +551,10 @@ async function busy(label: string, work: () => Promise<void>) {
 
 executeButton.onclick = () => busy("Running…", execute);
 resetButton.onclick = () =>
-  busy("Resetting the data…", async () => {
-    await resetData();
-    resultsEl.replaceChildren(muted("The data is reset."));
+  busy("Resetting the database…", async () => {
+    await resetDatabase();
+    showNotes([]);
+    resultsEl.replaceChildren(muted("The schema and the data are reset."));
   });
 randomButton.onclick = () =>
   busy("Sampling…", async () => {

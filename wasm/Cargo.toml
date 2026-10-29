@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pgtk-sql = { version = "=0.1.0", default-features = false, features = ["pg18", "spans", "arbitrary"] }
 pgtk-analyze = { version = "=0.1.0", default-features = false, features = ["pg18"] }
-pgtk-catalog = { version = "=0.1.0", features = ["serde"] }
+pgtk-catalog = { version = "=0.1.0" }
 recursa = "=0.1.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -28,3 +28,8 @@ strip = true
 # wasm-opt makes the brotli size only 1% smaller and takes many minutes.
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
+
+# Until pgtk-catalog 0.1.1 is released: the Loader from pgtk main reads no clock, so it runs in
+# the browser (freshtonic/pgtk#115).
+[patch.crates-io]
+pgtk-catalog = { git = "https://github.com/freshtonic/pgtk", rev = "98f98ff1" }

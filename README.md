@@ -10,17 +10,21 @@ runs it. The page is at <https://freshtonic.github.io/pgtk-playground/>.
   result of the last one. Each column heading shows the type that pgtk-analyze found and the type
   that PostgreSQL gave.
 - **Random** gives a random statement from pgtk-sql's sampler. It does not know the schema.
-- **Reset data** puts back the sample data.
+- **Reset database** puts back the starting schema and data.
+- **AST** shows the syntax tree of each statement.
 
-The database is a small employee schema (`web/src/schema.sql` and `web/src/data.sql`). The schema
-is fixed: the page does not run DDL.
+The database starts with a small employee schema (`web/src/schema.sql` and `web/src/data.sql`).
+DDL is permitted: after a statement that can change the catalog, the page loads the catalog again,
+and the statements after it are checked against the new catalog.
 
 ## How it works
 
 - `wasm/` is a Rust crate that uses the published pgtk-sql, pgtk-catalog and pgtk-analyze
   crates, with the PostgreSQL 18 grammar. `wasm-pack` builds it for the page.
-- pgtk-catalog's `Loader` loads the catalog from PGlite at start-up: the page runs each of the
-  Loader's queries in PGlite and gives the rows to the Loader.
+- pgtk-catalog's `Loader` loads the catalog from PGlite, at start-up and after DDL: the page runs
+  each of the Loader's queries in PGlite and gives the rows to the Loader. Until pgtk-catalog
+  0.1.1 is released, `wasm/Cargo.toml` patches pgtk-catalog to a commit of pgtk, because the
+  Loader of 0.1.0 reads the clock, and the browser target has none.
 - pgtk-sql gives a syntax error its location but not PostgreSQL's message. For that message, the
   page asks PostgreSQL (`describeQuery`), which parses the statement but never runs it.
 - `web/` is a Vite and TypeScript page with CodeMirror 6.

@@ -3,5 +3,3 @@
 /web/dist/
 /web/src/pkg/
 .DS_Store
-/catalog/target/
-/catalog/rows.json

@@ -1,11 +1,11 @@
-//! The WebAssembly side of the playground: the check that Execute runs before PostgreSQL,
-//! and Random.
+//! The WebAssembly side of the playground: the catalog loader, the check that Execute runs
+//! before PostgreSQL, the AST, and Random.
 //!
 //! Every offset that crosses to JavaScript is in UTF-16 code units, which is what the editor
 //! uses. pgtk gives byte offsets.
 
 use pgtk_analyze::{AnalyzeError, Analyzer, Session, Settings, TargetVersion};
-use pgtk_catalog::{Catalog, Loader, Rows};
+use pgtk_catalog::{Catalog, Loader, QueryId, Rows};
 use pgtk_sql::document::{RecoveredItem, parse_sql_recovering};
 use recursa::PrettyConfig;
 use serde::Serialize;
@@ -18,22 +18,53 @@ fn start() {
     console_error_panic_hook::set_once();
 }
 
-/// Gives the queries of pgtk-catalog's [`Loader`], for `catalog/dump-rows.mjs`.
-///
-/// The Loader itself runs at build time (`catalog/`), because [`Loader::finish`] reads the
-/// clock, and `wasm32-unknown-unknown` has none.
-#[wasm_bindgen(js_name = loaderQueries)]
-pub fn loader_queries(bootstrap_rows: &str) -> Result<Vec<String>, JsError> {
-    let rows: Rows = serde_json::from_str(bootstrap_rows)
-        .map_err(|e| JsError::new(&format!("bad rows: {e}")))?;
-    let loader = Loader::new(rows)?;
-    Ok(loader.queries().map(|(_, sql)| sql.to_owned()).collect())
+/// Drives pgtk-catalog's [`Loader`]. JavaScript runs each query in PGlite and feeds the rows.
+#[wasm_bindgen]
+pub struct CatalogLoader {
+    loader: Loader,
+    queries: Vec<(QueryId, &'static str)>,
 }
 
-/// The bootstrap query of pgtk-catalog's [`Loader`].
-#[wasm_bindgen(js_name = loaderBootstrapQuery)]
-pub fn loader_bootstrap_query() -> String {
-    Loader::BOOTSTRAP_QUERY.to_owned()
+#[wasm_bindgen]
+impl CatalogLoader {
+    /// The first query. Its rows go to [`CatalogLoader::new`].
+    #[wasm_bindgen(js_name = bootstrapQuery)]
+    pub fn bootstrap_query() -> String {
+        Loader::BOOTSTRAP_QUERY.to_owned()
+    }
+
+    /// Starts a load from the rows of the bootstrap query, as JSON (`(string | null)[][]`).
+    #[wasm_bindgen(constructor)]
+    pub fn new(bootstrap_rows: &str) -> Result<CatalogLoader, JsError> {
+        let loader = Loader::new(rows(bootstrap_rows)?)?;
+        let queries = loader.queries().collect();
+        Ok(CatalogLoader { loader, queries })
+    }
+
+    /// The queries to run, in order.
+    pub fn queries(&self) -> Vec<String> {
+        self.queries
+            .iter()
+            .map(|(_, sql)| (*sql).to_owned())
+            .collect()
+    }
+
+    /// Gives the rows of query `index` of [`CatalogLoader::queries`], as JSON.
+    pub fn feed(&mut self, index: usize, rows_json: &str) -> Result<(), JsError> {
+        let (id, _) = self.queries[index];
+        self.loader.feed(id, rows(rows_json)?);
+        Ok(())
+    }
+
+    /// Ends the load.
+    pub fn finish(self) -> Result<Playground, JsError> {
+        let catalog = self.loader.finish()?.catalog;
+        Ok(Playground { catalog })
+    }
+}
+
+fn rows(json: &str) -> Result<Rows, JsError> {
+    serde_json::from_str(json).map_err(|e| JsError::new(&format!("bad rows: {e}")))
 }
 
 /// The analyser, with the Catalog of the PGlite database.
@@ -105,14 +136,6 @@ struct TypeName {
 
 #[wasm_bindgen]
 impl Playground {
-    /// Makes the analyser from the Catalog JSON that `catalog/` writes.
-    #[wasm_bindgen(constructor)]
-    pub fn new(catalog_json: &str) -> Result<Playground, JsError> {
-        let catalog = serde_json::from_str(catalog_json)
-            .map_err(|e| JsError::new(&format!("bad catalog: {e}")))?;
-        Ok(Playground { catalog })
-    }
-
     /// Parses `sql` with the recovering parse and analyses each statement. Gives JSON: an array
     /// of items, one for each statement.
     pub fn check(&self, sql: &str) -> Result<String, JsError> {
