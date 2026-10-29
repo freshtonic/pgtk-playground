@@ -122,6 +122,8 @@ button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent);
   text-underline-offset: 4px;
   text-decoration-skip-ink: none;
 }
+/* A whole statement, for an error that PostgreSQL gave no position for: a lighter mark. */
+#editor .cm-lintRange-error.cm-lint-statement { background-color: transparent; text-decoration-style: dotted; }
 #editor .cm-lintRange-warning { background-image: none; text-decoration: underline wavy var(--warning); text-decoration-thickness: 2px; text-underline-offset: 4px; }
 #editor .cm-lintRange-info { background-image: none; text-decoration: underline dotted var(--info); text-decoration-thickness: 2px; text-underline-offset: 4px; }
 

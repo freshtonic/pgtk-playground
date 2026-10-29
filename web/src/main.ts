@@ -46,6 +46,8 @@ type Note = {
   message: string;
   from?: number;
   to?: number;
+  /** A class for the marked range, for a location that PostgreSQL did not give. */
+  markClass?: string;
 };
 
 type PgError = Error & { code?: string; position?: string; hint?: string; detail?: string };
@@ -108,7 +110,7 @@ function showNotes(notes: Note[]) {
     .filter((n) => n.from !== undefined)
     .map((n) => {
       const [from, to] = widen(text, n.from!, n.to ?? n.from!);
-      return { from, to, severity: n.severity, message: `${n.title}: ${n.message}` };
+      return { from, to, severity: n.severity, message: `${n.title}: ${n.message}`, markClass: n.markClass };
     });
   editor.dispatch(setDiagnostics(editor.state, diagnostics));
   notesEl.replaceChildren(
@@ -198,6 +200,40 @@ function pgPosition(text: string, position: string | undefined): number | undefi
     offset += ch.length;
   }
   return offset;
+}
+
+/**
+ * The location of a PostgreSQL error in a statement. Many errors (most DDL errors) have no
+ * position. Then the location is the one name in quotes in the message, when the statement holds
+ * it exactly once, and otherwise the whole statement. It is never a guess.
+ */
+function errorRange(item: Item, err: PgError): Pick<Note, "from" | "to" | "markClass"> & { how?: string } {
+  const at = pgPosition(item.text, err.position);
+  if (at !== undefined) return { from: item.start + at, to: item.start + at };
+  for (const [, quoted] of err.message.matchAll(/"((?:[^"]|"")+)"/g)) {
+    const name = quoted.replace(/""/g, '"');
+    // The name as an unquoted identifier (in any case) or as a quoted identifier.
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(
+      `(?<![\\p{L}\\p{N}_$"])${escaped}(?![\\p{L}\\p{N}_$"])|"${escaped.replace(/"/g, '""')}"`,
+      "giu",
+    );
+    const matches = [...item.text.matchAll(pattern)];
+    if (matches.length === 1) {
+      const m = matches[0];
+      return {
+        from: item.start + m.index!,
+        to: item.start + m.index! + m[0].length,
+        how: "The location comes from the name in the message: PostgreSQL gave no position.",
+      };
+    }
+  }
+  return {
+    from: item.start,
+    to: item.start + item.text.replace(/[\s;]+$/, "").length,
+    markClass: "cm-lint-statement",
+    how: "PostgreSQL gave no position for this error.",
+  };
 }
 
 function pgMessage(e: PgError): string {
@@ -340,7 +376,7 @@ async function execute() {
       last = { item, result: await db.query<unknown[]>(item.text, [], { rowMode: "array" }) };
     } catch (e) {
       const err = e as PgError;
-      const at = pgPosition(item.text, err.position);
+      const { how, ...range } = errorRange(item, err);
       notes.push({
         severity: "error",
         title: `${err.code ?? "ERROR"}`,
@@ -351,9 +387,9 @@ async function execute() {
           // analyse DDL.
           (item.kind === "analysed" && !item.utility && err.code?.startsWith("42")
             ? " (PostgreSQL found an error that pgtk-analyze did not find)"
-            : " (from PostgreSQL, when it ran the statement)"),
-        from: item.start + (at ?? 0),
-        to: item.start + (at ?? 0),
+            : " (from PostgreSQL, when it ran the statement)") +
+          (how ? ` ${how}` : ""),
+        ...range,
       });
       if (changesCatalog(item.text) || i > first) await reloadCatalog();
       showNotes(notes);
