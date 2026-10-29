@@ -29,7 +29,16 @@ strip = true
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
 
-# Until pgtk-catalog 0.1.1 is released: the Loader from pgtk main reads no clock, so it runs in
-# the browser (freshtonic/pgtk#115, merged).
+# Until the next releases of pgtk and recursa: pgtk-sql's pretty-print layout (one clause on each
+# line) needs the layout settings of recursa at this commit, and the pgtk-catalog Loader at this
+# commit reads no clock, so it runs in the browser. The recursa patch must name the commit that
+# the pgtk commit patches recursa to.
 [patch.crates-io]
-pgtk-catalog = { git = "https://github.com/freshtonic/pgtk", rev = "25b4e53c80467aac3aeb9454bd02a5fec7d3404c" }
+pgtk-sql = { git = "https://github.com/freshtonic/pgtk", rev = "b063917c750c0307ae2e8d5b839f37037cfd9752" }
+pgtk-analyze = { git = "https://github.com/freshtonic/pgtk", rev = "b063917c750c0307ae2e8d5b839f37037cfd9752" }
+pgtk-catalog = { git = "https://github.com/freshtonic/pgtk", rev = "b063917c750c0307ae2e8d5b839f37037cfd9752" }
+recursa = { git = "https://github.com/freshtonic/recursa", rev = "42a1152704d1a031d98011d201d4a2cbe5e6980a" }
+recursa-core = { git = "https://github.com/freshtonic/recursa", rev = "42a1152704d1a031d98011d201d4a2cbe5e6980a" }
+recursa-codegen = { git = "https://github.com/freshtonic/recursa", rev = "42a1152704d1a031d98011d201d4a2cbe5e6980a" }
+recursa-macros = { git = "https://github.com/freshtonic/recursa", rev = "42a1152704d1a031d98011d201d4a2cbe5e6980a" }
+recursa-diagrams = { git = "https://github.com/freshtonic/recursa", rev = "42a1152704d1a031d98011d201d4a2cbe5e6980a" }

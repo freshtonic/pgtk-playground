@@ -6,7 +6,12 @@ import { linter, setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { autocompletion } from "@codemirror/autocomplete";
 import { syntaxHighlighting } from "@codemirror/language";
 import { classHighlighter } from "@lezer/highlight";
-import init, { CatalogLoader, type Playground, ast as astJson } from "./pkg/pgtk_playground_wasm.js";
+import init, {
+  CatalogLoader,
+  type Playground,
+  ast as astJson,
+  format as formatSql,
+} from "./pkg/pgtk_playground_wasm.js";
 import schemaSql from "./schema.sql?raw";
 import dataSql from "./data.sql?raw";
 
@@ -66,6 +71,7 @@ ORDER BY salary_bill DESC NULLS LAST;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const executeButton = $<HTMLButtonElement>("execute");
 const randomButton = $<HTMLButtonElement>("random");
+const formatButton = $<HTMLButtonElement>("format");
 const resetButton = $<HTMLButtonElement>("reset");
 const presentButton = $<HTMLButtonElement>("present");
 const status = $<HTMLSpanElement>("status");
@@ -172,6 +178,7 @@ async function resetDatabase() {
 
 async function start() {
   await init();
+  formatEditor();
   db = await PGlite.create();
   await db.exec(schemaSql);
   await db.exec(dataSql);
@@ -615,6 +622,27 @@ astButton.onclick = () => {
   updateAst();
 };
 
+// ----- Format -----
+
+/**
+ * Replaces the text of the editor with pgtk-sql's pretty print of it. Text that pgtk-sql rejects,
+ * and a statement with a comment in it, stay as they are.
+ */
+function formatEditor() {
+  const text = editor.state.doc.toString();
+  let formatted: string;
+  try {
+    formatted = formatSql(text);
+  } catch (e) {
+    // The framing of the document failed. The text stays as it is.
+    console.error(e);
+    return;
+  }
+  if (formatted !== text) {
+    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: formatted } });
+  }
+}
+
 // ----- Random -----
 
 let worker: Worker | undefined;
@@ -653,7 +681,7 @@ setPresent(new URL(location.href).searchParams.has("present"));
 // ----- start -----
 
 async function busy(label: string, work: () => Promise<void>) {
-  const buttons = [executeButton, randomButton, resetButton, astButton];
+  const buttons = [executeButton, formatButton, randomButton, resetButton, astButton];
   buttons.forEach((b) => (b.disabled = true));
   status.textContent = label;
   try {
@@ -668,6 +696,11 @@ async function busy(label: string, work: () => Promise<void>) {
 }
 
 executeButton.onclick = () => busy("Running…", execute);
+formatButton.onclick = () =>
+  busy("Formatting…", async () => {
+    formatEditor();
+    updateAst();
+  });
 resetButton.onclick = () =>
   busy("Resetting the database…", async () => {
     await resetDatabase();
