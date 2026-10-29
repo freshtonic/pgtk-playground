@@ -1,0 +1,24 @@
+{
+  "name": "pgtk-playground",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "wasm": "cd ../wasm && wasm-pack build --release --target web --out-dir ../web/src/pkg --no-pack",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "catalog": "cd .. && node catalog/dump-rows.mjs catalog/rows.json && cargo run --quiet --release --manifest-path catalog/Cargo.toml -- catalog/rows.json web/src/catalog.json"
+  },
+  "dependencies": {
+    "@codemirror/lang-sql": "6.10.0",
+    "@codemirror/lint": "6.9.7",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@electric-sql/pglite": "0.5.13",
+    "codemirror": "6.0.2"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.3.7"
+  }
+}

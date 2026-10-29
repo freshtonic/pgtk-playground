@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>pgtk playground</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1><a href="https://github.com/freshtonic/pgtk">pgtk</a> playground</h1>
+      <p class="tagline">
+        pgtk-analyze checks your SQL against PostgreSQL 18 before PostgreSQL runs it.
+        PostgreSQL itself runs in your browser with <a href="https://pglite.dev">PGlite</a>.
+      </p>
+    </header>
+    <main>
+      <section class="editor-pane">
+        <div class="toolbar">
+          <button id="execute" disabled title="Ctrl+Enter">Execute</button>
+          <button id="random" disabled>Random</button>
+          <button id="reset" disabled>Reset data</button>
+          <button id="toggle-ast" disabled aria-pressed="false">AST</button>
+          <span id="status">Loading PostgreSQL…</span>
+        </div>
+        <div id="editor"></div>
+        <details class="schema">
+          <summary>Schema (read-only)</summary>
+          <pre id="schema"></pre>
+        </details>
+      </section>
+      <section class="results-pane">
+        <div id="notes"></div>
+        <div id="results"><p class="muted">Click Execute to run the SQL.</p></div>
+      </section>
+      <aside class="ast-pane" id="ast-pane" hidden>
+        <h2>AST <span class="muted">(pgtk-sql)</span></h2>
+        <div id="ast"></div>
+      </aside>
+    </main>
+    <footer>
+      pgtk-sql, pgtk-catalog and pgtk-analyze 0.1.0 (grammar PostgreSQL 18) ·
+      <a href="https://github.com/freshtonic/pgtk-playground">source</a> ·
+      <a href="https://github.com/freshtonic/pgtk/issues/new">report a disagreement</a>
+    </footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

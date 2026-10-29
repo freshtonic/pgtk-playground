@@ -1,0 +1,30 @@
+[package]
+name = "pgtk-playground-wasm"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+pgtk-sql = { version = "=0.1.0", default-features = false, features = ["pg18", "spans", "arbitrary"] }
+pgtk-analyze = { version = "=0.1.0", default-features = false, features = ["pg18"] }
+pgtk-catalog = { version = "=0.1.0", features = ["serde"] }
+recursa = "=0.1.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wasm-bindgen = "0.2"
+console_error_panic_hook = "0.1"
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 16
+panic = "abort"
+strip = true
+
+# wasm-opt makes the brotli size only 1% smaller and takes many minutes.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
